@@ -1,3 +1,9 @@
+// Adminer specific functions
+
+/** Load syntax highlighting
+* @param string first three characters of database system version
+* @param [boolean]
+*/
 function bodyLoad(version, maria) {
 	if (window.jush) {
 		jush.create_links = ' target="_blank" rel="noreferrer noopener"';
@@ -11,14 +17,14 @@ function bodyLoad(version, maria) {
 						for (var i = 1; i < obj.length; i++) {
 							obj[i] = obj[i]
 								.replace(/\.html/, '/')
-								.replace(/(numeric)(-type-overview)/, '$1-data$2')
+								.replace(/-type-syntax/, '-data-types')
+								.replace(/numeric-(data-types)/, '$1-$&')
 								.replace(/#statvar_.*/, '#$$1')
 							;
 						}
 					}
 				}
-				obj[key] = obj[key]
-					.replace(/dev\.mysql\.com\/doc\/mysql\/en\//, (maria ? 'mariadb.com/kb/en/library/' : '$&')) // MariaDB
+				obj[key] = (maria ? obj[key].replace(/dev\.mysql\.com\/doc\/mysql\/en\//, 'mariadb.com/kb/en/library/') : obj[key]) // MariaDB
 					.replace(/\/doc\/mysql/, '/doc/refman/' + version) // MySQL
 					.replace(/\/docs\/current/, '/docs/' + version) // PostgreSQL
 				;
@@ -39,6 +45,12 @@ function bodyLoad(version, maria) {
 		}
 	}
 }
+
+/** Get value of dynamically created form field
+* @param HTMLFormElement
+* @param string
+* @return HTMLElement
+*/
 function formField(form, name) {
 	// required in IE < 8, form.elements[name] doesn't work
 	for (var i=0; i < form.length; i++) {
@@ -47,32 +59,59 @@ function formField(form, name) {
 		}
 	}
 }
+
+/** Try to change input type to password or to text
+* @param HTMLInputElement
+* @param boolean
+*/
 function typePassword(el, disable) {
 	try {
 		el.type = (disable ? 'text' : 'password');
 	} catch (e) {
 	}
 }
+
+/** Install toggle handler
+* @param [HTMLElement]
+*/
 function messagesPrint(el) {
 	var els = qsa('.toggle', el);
 	for (var i = 0; i < els.length; i++) {
 		els[i].onclick = partial(toggle, els[i].getAttribute('href').substr(1));
 	}
 }
+
+
+
+/** Hide or show some login rows for selected driver	
+* @param HTMLSelectElement	
+*/	
 function loginDriver(driver) {	
 	var trs = parentTag(driver, 'table').rows;	
 	var disabled = /sqlite/.test(selectValue(driver));	
 	alterClass(trs[1], 'hidden', disabled);	// 1 - row with server
 	trs[1].getElementsByTagName('input')[0].disabled = disabled;	
 }
+
+
+
 var dbCtrl;
 var dbPrevious = {};
+
+/** Check if database should be opened to a new window
+* @param MouseEvent
+* @this HTMLSelectElement
+*/
 function dbMouseDown(event) {
 	dbCtrl = isCtrl(event);
 	if (dbPrevious[this.name] == undefined) {
 		dbPrevious[this.name] = this.value;
 	}
 }
+
+/** Load database after selecting it
+* @this HTMLSelectElement
+*/
 function dbChange() {
 	if (dbCtrl) {
 		this.form.target = '_blank';
@@ -84,6 +123,12 @@ function dbChange() {
 		dbPrevious[this.name] = undefined;
 	}
 }
+
+
+
+/** Check whether the query will be executed with index
+* @this HTMLElement
+*/
 function selectFieldChange() {
 	var form = this.form;
 	var ok = (function () {
@@ -137,17 +182,66 @@ function selectFieldChange() {
 	})();
 	setHtml('noindex', (ok ? '' : '!'));
 }
+
+
+
 var added = '.', rowCount;
+
+/** Check if val is equal to a-delimiter-b where delimiter is '_', '' or big letter
+* @param string
+* @param string
+* @param string
+* @return boolean
+*/
 function delimiterEqual(val, a, b) {
 	return (val == a + '_' + b || val == a + b || val == a + b.charAt(0).toUpperCase() + b.substr(1));
 }
+
+/** Escape string to use as identifier
+* @param string
+* @return string
+*/
 function idfEscape(s) {
 	return s.replace(/`/, '``');
 }
+
+
+
+/** Set up event handlers for edit_fields().
+*/
+function editFields() {
+	var els = qsa('[name$="[field]"]');
+	for (var i = 0; i < els.length; i++) {
+		els[i].oninput = function () {
+			editingNameChange.call(this);
+			if (!this.defaultValue) {
+				editingAddRow.call(this);
+			}
+		}
+	}
+	els = qsa('[name$="[length]"]');
+	for (var i = 0; i < els.length; i++) {
+		mixin(els[i], {onfocus: editingLengthFocus, oninput: editingLengthChange});
+	}
+	els = qsa('[name$="[type]"]');
+	for (var i = 0; i < els.length; i++) {
+		mixin(els[i], {
+			onfocus: function () { lastType = selectValue(this); },
+			onchange: editingTypeChange,
+			onmouseover: function (event) { helpMouseover.call(this, event, getTarget(event).value, 1) },
+			onmouseout: helpMouseout
+		});
+	}
+}
+
+/** Handle clicks on fields editing
+* @param MouseEvent
+* @return boolean false to cancel action
+*/
 function editingClick(event) {
 	var el = getTarget(event);
 	if (!isTag(el, 'input')) {
-		el = parentTag(target, 'label');
+		el = parentTag(el, 'label');
 		el = el && qs('input', el);
 	}
 	if (el) {
@@ -173,12 +267,20 @@ function editingClick(event) {
 		return false;
 	}
 }
+
+/** Handle input on fields editing
+* @param InputEvent
+*/
 function editingInput(event) {
 	var el = getTarget(event);
 	if (/\[default\]$/.test(el.name)) {
 		 el.previousSibling.checked = true;
 	}
 }
+
+/** Detect foreign key
+* @this HTMLInputElement
+*/
 function editingNameChange() {
 	var name = this.name.substr(0, this.name.length - 7);
 	var type = formField(this.form, name + '[type]');
@@ -212,6 +314,12 @@ function editingNameChange() {
 		type.onchange();
 	}
 }
+
+/** Add table row for next field
+* @param [boolean]
+* @return boolean false
+* @this HTMLInputElement
+*/
 function editingAddRow(focus) {
 	var match = /(\d+)(\.\d+)?/.exec(this.name);
 	var x = match[0] + (match[2] ? added.substr(match[2].length) : added) + '1';
@@ -249,12 +357,24 @@ function editingAddRow(focus) {
 	rowCount++;
 	return false;
 }
+
+/** Remove table row for field
+* @param string regular expression replacement
+* @return boolean false
+* @this HTMLInputElement
+*/
 function editingRemoveRow(name) {
 	var field = formField(this.form, this.name.replace(/[^\[]+(.+)/, name));
 	field.parentNode.removeChild(field);
 	parentTag(this, 'tr').style.display = 'none';
 	return false;
 }
+
+/** Move table row for field
+* @param [boolean]
+* @return boolean false for success
+* @this HTMLInputElement
+*/
 function editingMoveRow(up){
 	var row = parentTag(this, 'tr');
 	if (!('nextElementSibling' in row)) {
@@ -265,7 +385,12 @@ function editingMoveRow(up){
 		: row.nextElementSibling ? row.nextElementSibling.nextElementSibling : row.parentNode.firstChild);
 	return false;
 }
+
 var lastType = '';
+
+/** Clear length and hide collation or unsigned
+* @this HTMLSelectElement
+*/
 function editingTypeChange() {
 	var type = this;
 	var name = type.name.substr(0, type.name.length - 6);
@@ -299,9 +424,17 @@ function editingTypeChange() {
 	}
 	helpClose();
 }
+
+/** Mark length as required
+* @this HTMLInputElement
+*/
 function editingLengthChange() {
 	alterClass(this, 'required', !this.value.length && /var(char|binary)$/.test(selectValue(this.parentNode.previousSibling.firstChild)));
 }
+
+/** Edit enum or set
+* @this HTMLInputElement
+*/
 function editingLengthFocus() {
 	var td = this.parentNode;
 	if (/(enum|set)$/.test(selectValue(td.previousSibling.firstChild))) {
@@ -313,6 +446,11 @@ function editingLengthFocus() {
 		edit.focus();
 	}
 }
+
+/** Get enum values
+* @param string
+* @return string values separated by newlines
+*/
 function enumValues(s) {
 	var re = /(^|,)\s*'(([^\\']|\\.|'')*)'\s*/g;
 	var result = [];
@@ -327,6 +465,10 @@ function enumValues(s) {
 	}
 	return (offset == s.length ? result.join('\n') : s);
 }
+
+/** Finish editing of enum or set
+* @this HTMLTextAreaElement
+*/
 function editingLengthBlur() {
 	var field = this.parentNode.firstChild;
 	var val = this.value;
@@ -334,24 +476,42 @@ function editingLengthBlur() {
 	field.style.display = 'inline';
 	this.style.display = 'none';
 }
+
+/** Show or hide selected table column
+* @param boolean
+* @param number
+*/
 function columnShow(checked, column) {
 	var trs = qsa('tr', qs('#edit-fields'));
 	for (var i=0; i < trs.length; i++) {
 		alterClass(qsa('td', trs[i])[column], 'hidden', !checked);
 	}
 }
+
+/** Display partition options
+* @this HTMLSelectElement
+*/
 function partitionByChange() {
 	var partitionTable = /RANGE|LIST/.test(selectValue(this));
 	alterClass(this.form['partitions'], 'hidden', partitionTable || !this.selectedIndex);
 	alterClass(qs('#partition-table'), 'hidden', !partitionTable);
 	helpClose();
 }
+
+/** Add next partition row
+* @this HTMLInputElement
+*/
 function partitionNameChange() {
 	var row = cloneNode(parentTag(this, 'tr'));
 	row.firstChild.firstChild.value = '';
 	parentTag(this, 'table').appendChild(row);
 	this.oninput = function () {};
 }
+
+/** Show or hide comment fields
+* @param HTMLInputElement
+* @param [boolean] whether to focus Comment if checked
+*/
 function editingCommentsClick(el, focus) {
 	var comment = el.form['Comment'];
 	columnShow(el.checked, 6);
@@ -360,6 +520,13 @@ function editingCommentsClick(el, focus) {
 		comment.focus();
 	}
 }
+
+
+
+/** Uncheck 'all' checkbox
+* @param MouseEvent
+* @this HTMLTableElement
+*/
 function dumpClick(event) {
 	var el = parentTag(getTarget(event), 'label');
 	if (el) {
@@ -371,6 +538,12 @@ function dumpClick(event) {
 		}
 	}
 }
+
+
+
+/** Add row for foreign key
+* @this HTMLSelectElement
+*/
 function foreignAddRow() {
 	var row = cloneNode(parentTag(this, 'tr'));
 	this.onchange = function () { };
@@ -381,6 +554,12 @@ function foreignAddRow() {
 	}
 	parentTag(this, 'table').appendChild(row);
 }
+
+
+
+/** Add row for indexes
+* @this HTMLSelectElement
+*/
 function indexesAddRow() {
 	var row = cloneNode(parentTag(this, 'tr'));
 	this.onchange = function () { };
@@ -396,6 +575,11 @@ function indexesAddRow() {
 	}
 	parentTag(this, 'table').appendChild(row);
 }
+
+/** Change column in index
+* @param string name prefix
+* @this HTMLSelectElement
+*/
 function indexesChangeColumn(prefix) {
 	var names = [];
 	for (var tag in { 'select': 1, 'input': 1 }) {
@@ -411,6 +595,11 @@ function indexesChangeColumn(prefix) {
 	}
 	this.form[this.name.replace(/\].*/, '][name]')].value = prefix + names.join('_');
 }
+
+/** Add column for index
+* @param string name prefix
+* @this HTMLSelectElement
+*/
 function indexesAddColumn(prefix) {
 	var field = this;
 	var select = field.form[field.name.replace(/\].*/, '][type]')];
@@ -439,6 +628,13 @@ function indexesAddColumn(prefix) {
 	parentTag(field, 'td').appendChild(column);
 	field.onchange();
 }
+
+
+
+/** Updates the form action
+* @param HTMLFormElement
+* @param string
+*/
 function sqlSubmit(form, root) {
 	if (encodeURIComponent(form['query'].value).length < 2e3) {
 		form.action = root
@@ -449,14 +645,30 @@ function sqlSubmit(form, root) {
 		;
 	}
 }
+
+
+
+/** Handle changing trigger time or event
+* @param RegExp
+* @param string
+* @param HTMLFormElement
+*/
 function triggerChange(tableRe, table, form) {
 	var formEvent = selectValue(form['Event']);
 	if (tableRe.test(form['Trigger'].value)) {
 		form['Trigger'].value = table + '_' + (selectValue(form['Timing']).charAt(0) + formEvent.charAt(0)).toLowerCase();
 	}
-	alterClass(form['Of'], 'hidden', formEvent != 'UPDATE OF');
+	alterClass(form['Of'], 'hidden', !/ OF/.test(formEvent));
 }
+
+
+
 var that, x, y; // em and tablePos defined in schema.inc.php
+
+/** Get mouse position
+* @param MouseEvent
+* @this HTMLElement
+*/
 function schemaMousedown(event) {
 	if ((event.which ? event.which : event.button) == 1) {
 		that = this;
@@ -464,6 +676,10 @@ function schemaMousedown(event) {
 		y = event.clientY - this.offsetTop;
 	}
 }
+
+/** Move object
+* @param MouseEvent
+*/
 function schemaMousemove(event) {
 	if (that !== undefined) {
 		var left = (event.clientX - x) / em;
@@ -502,6 +718,11 @@ function schemaMousemove(event) {
 		that.style.top = top + 'em';
 	}
 }
+
+/** Finish move
+* @param MouseEvent
+* @param string
+*/
 function schemaMouseup(event, db) {
 	if (that !== undefined) {
 		tablePos[that.firstChild.firstChild.firstChild.data] = [ (event.clientY - y) / em, (event.clientX - x) / em ];
@@ -516,7 +737,17 @@ function schemaMouseup(event, db) {
 		cookie('adminer_schema-' + db + '=' + s, 30); //! special chars in db
 	}
 }
+
+
+
 var helpOpen, helpIgnore; // when mouse outs <option> then it mouse overs border of <select> - ignore it
+
+/** Display help
+* @param MouseEvent
+* @param string
+* @param bool display on left side (otherwise on top)
+* @this HTMLElement
+*/
 function helpMouseover(event, text, side) {
 	var target = getTarget(event);
 	if (!text) {
@@ -533,6 +764,11 @@ function helpMouseover(event, text, side) {
 		help.style.left = (body.scrollLeft + rect.left - (side ? help.offsetWidth : (help.offsetWidth - target.offsetWidth) / 2)) + 'px';
 	}
 }
+
+/** Close help after timeout
+* @param MouseEvent
+* @this HTMLElement
+*/
 function helpMouseout(event) {
 	helpOpen = 0;
 	helpIgnore = (this != getTarget(event));
@@ -542,6 +778,9 @@ function helpMouseout(event) {
 		}
 	}, 200);
 }
+
+/** Close help
+*/
 function helpClose() {
 	alterClass(qs('#help'), 'hidden', true);
 }

